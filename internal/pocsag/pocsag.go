@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"bitbucket.org/dhogborg/go-pocsag/internal/datatypes"
-	"bitbucket.org/dhogborg/go-pocsag/internal/utils"
+	"github.com/dhogborg/go-pocsag/internal/datatypes"
+	"github.com/dhogborg/go-pocsag/internal/utils"
 
 	"github.com/fatih/color"
 )

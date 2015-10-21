@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"bitbucket.org/dhogborg/go-pocsag/internal/wav"
+	"github.com/dhogborg/go-pocsag/internal/wav"
 )
 
 // ReadWav reads a wav file from disc and puts it in memory for the

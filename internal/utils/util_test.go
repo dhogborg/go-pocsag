@@ -4,7 +4,7 @@ import (
 	. "gopkg.in/check.v1"
 	"testing"
 
-	"bitbucket.org/dhogborg/go-pocsag/internal/datatypes"
+	"github.com/dhogborg/go-pocsag/internal/datatypes"
 )
 
 // Hook up gocheck into the "go test" runner.

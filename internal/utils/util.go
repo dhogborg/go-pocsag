@@ -5,7 +5,7 @@ import (
 
 	"github.com/fatih/color"
 
-	"bitbucket.org/dhogborg/go-pocsag/internal/datatypes"
+	"github.com/dhogborg/go-pocsag/internal/datatypes"
 )
 
 var (
