@@ -55,10 +55,13 @@ func (s *StreamReader) StartScan(bitstream chan []datatypes.Bit) {
 			transmission := s.ReadTransmission(stream[start:])
 
 			bits := utils.StreamToBits(transmission, bitlength)
+
+			if DEBUG && LEVEL > 2 {
+				utils.PrintBitstream(bits)
+			}
+
 			bitstream <- bits
 		}
-
-		time.Sleep(3 * time.Millisecond)
 
 	}
 }
@@ -81,6 +84,10 @@ func (s *StreamReader) ReadTransmission(beginning []int16) []int16 {
 			stream = append(stream, bstr...)
 
 			if s.isNoise(bstr) {
+				if DEBUG && LEVEL > 1 {
+					print("\n")
+					println("Transmission end (high noise level)")
+				}
 				break
 			}
 		}
@@ -223,7 +230,13 @@ func (s *StreamReader) isNoise(stream []int16) bool {
 		prevsamp = sample
 	}
 
-	return switches > 100
+	switchrate := float32(switches) / float32(len(stream))
+
+	if DEBUG && LEVEL > 1 {
+		fmt.Printf("%0.0f ", switchrate*100)
+	}
+
+	return switchrate > 0.15
 }
 
 // bToInt16 converts bytes to int16

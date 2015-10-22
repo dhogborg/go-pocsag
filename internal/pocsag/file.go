@@ -18,10 +18,11 @@ func ReadWav(path string) *bytes.Buffer {
 		return nil
 	}
 
-	samplecount := int(wavdata.Subchunk2Size / uint32(wavdata.BitsPerSample/8))
-	seconds := float32(samplecount) / float32(wavdata.SampleRate)
-
 	if DEBUG {
+
+		samplecount := int(wavdata.Subchunk2Size / uint32(wavdata.BitsPerSample/8))
+		seconds := float32(samplecount) / float32(wavdata.SampleRate)
+		fmt.Printf("Samplerate: %d\n", wavdata.SampleRate)
 		fmt.Printf("Samples: %d\n", samplecount)
 		fmt.Printf("Seconds: %0.3f\n", seconds)
 	}

@@ -46,7 +46,7 @@ func ParsePOCSAG(bits []datatypes.Bit, messagetype MessageType) {
 		return
 	}
 
-	if DEBUG {
+	if DEBUG && LEVEL > 1 {
 		for i, batch := range batches {
 			println("")
 			println("Batch: ", i)
@@ -96,7 +96,7 @@ func (p *POCSAG) ParseBatches(bits []datatypes.Bit) ([]*Batch, error) {
 			batchbits := bits[a : a+POCSAG_BATCH_LEN+32]
 			stream := utils.MSBBitsToBytes(batchbits, 8)
 
-			if DEBUG {
+			if DEBUG && LEVEL > 2 {
 				out, err := os.Create(fmt.Sprintf("batches/batch-%d.bin", batchno))
 				if err != nil {
 					return nil, err

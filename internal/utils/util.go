@@ -10,6 +10,7 @@ import (
 
 var (
 	DEBUG bool
+	LEVEL int
 )
 
 var (
@@ -18,8 +19,10 @@ var (
 	blue  = color.New(color.FgBlue)
 )
 
-func SetDebug(d bool) {
+// Tell the package to print debug data
+func SetDebug(d bool, verbosity int) {
 	DEBUG = d
+	LEVEL = verbosity
 }
 
 // StreamToBits converts samples to bits using the bitlength specified.
@@ -182,6 +185,7 @@ func PrintStream(samples []int16) {
 	for _, sample := range samples {
 		PrintSample(sample)
 	}
+	println("")
 }
 
 // PrintBitstream, used for debugging of streams
@@ -189,6 +193,7 @@ func PrintBitstream(bits []datatypes.Bit) {
 	for _, b := range bits {
 		PrintSample(int16(b.Int()))
 	}
+	println("")
 }
 
 // PrintSample, used for debugging of streams

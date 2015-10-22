@@ -6,6 +6,7 @@ import (
 
 var (
 	DEBUG bool
+	LEVEL int
 )
 
 var (
@@ -15,6 +16,7 @@ var (
 )
 
 // Tell the package to print debug data
-func SetDebug(d bool) {
+func SetDebug(d bool, verbosity int) {
 	DEBUG = d
+	LEVEL = verbosity
 }

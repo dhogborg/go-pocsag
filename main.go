@@ -27,6 +27,7 @@ type Config struct {
 	baud        int
 	debug       bool
 	messagetype pocsag.MessageType
+	verbosity   int
 }
 
 func main() {
@@ -39,7 +40,12 @@ func main() {
 		cli.StringFlag{
 			Name:  "input,i",
 			Value: "",
-			Usage: "wav file or data dump with signed 16 bit ints",
+			Usage: "wav file with signed 16 bit ints, - for sttdin",
+		},
+		cli.IntFlag{
+			Name:  "verbosity",
+			Value: 0,
+			Usage: "Verbosity level, 0 lowest level",
 		},
 		cli.IntFlag{
 			Name:  "baud,b",
@@ -48,7 +54,7 @@ func main() {
 		},
 		cli.BoolFlag{
 			Name:  "debug",
-			Usage: "Debug mode",
+			Usage: "Output debug information",
 		},
 		cli.StringFlag{
 			Name:  "type,t",
@@ -62,11 +68,12 @@ func main() {
 			input:       c.String("input"),
 			baud:        c.Int("baud"),
 			debug:       c.Bool("debug"),
+			verbosity:   c.Int("verbosity"),
 			messagetype: pocsag.MessageType(c.String("type")),
 		}
 
-		utils.SetDebug(config.debug)
-		pocsag.SetDebug(config.debug)
+		utils.SetDebug(config.debug, config.verbosity)
+		pocsag.SetDebug(config.debug, config.verbosity)
 
 		Run()
 
@@ -79,7 +86,7 @@ func Run() {
 
 	var source io.Reader
 
-	if config.input == "-" {
+	if config.input == "-" || config.input == "" {
 		source = os.Stdin
 	} else { // file reading
 		source = pocsag.ReadWav(config.input)
