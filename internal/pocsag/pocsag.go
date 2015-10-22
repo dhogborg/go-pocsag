@@ -226,22 +226,22 @@ func (m *Message) IsValid() bool {
 func (m *Message) PayloadString(messagetype MessageType) string {
 
 	bits := m.concactenateBits()
+
 	alphanum := m.AlphaPayloadString(bits)
+	bcd := utils.BitcodedDecimals(bits)
 
+	var decided = MessageTypeAuto
 	if messagetype == MessageTypeAuto {
-
-		if m.isAlphaNumericMessage(alphanum) {
-			messagetype = MessageTypeAlphanumeric
-		} else {
-			messagetype = MessageTypeBitcodedDecimal
-		}
+		decided = m.estimateMessageType(alphanum, bcd)
+	} else {
+		decided = messagetype
 	}
 
-	switch messagetype {
+	switch decided {
 	case MessageTypeAlphanumeric:
 		return alphanum
 	case MessageTypeBitcodedDecimal:
-		return utils.BitcodedDecimals(bits)
+		return bcd
 	default:
 		return alphanum
 	}
@@ -259,10 +259,10 @@ func (m *Message) AlphaPayloadString(bits []datatypes.Bit) string {
 	charmap := map[string]string{
 		"[":  "Ä",
 		"\\": "Ö",
-		"]":  "Ü",
+		"]":  "Å",
 		"{":  "ä",
 		"|":  "ö",
-		"}":  "ü",
+		"}":  "å",
 		"~":  "ß",
 	}
 	for b, s := range charmap {
@@ -284,53 +284,80 @@ func (m *Message) concactenateBits() []datatypes.Bit {
 	return msgsbits
 }
 
-// isAlphaNumericMessage tries to figure out if a message is in alpha-numeric format
+// estimateMessageType tries to figure out if a message is in alpha-numeric format
 // or Bitcoded decimal format. There is not always a clear indication which is correct,
 // so we try to guess based on some assumptions:
 // 1) Alpha numeric messages contains mostly printable charaters.
 // 2) BCD messages are usually shorter.
-func (m *Message) isAlphaNumericMessage(persumed string) bool {
+func (m *Message) estimateMessageType(persumed_alpha, persumed_bcd string) MessageType {
 
 	// MessageTypeAuto...
 	// Start guessing
 
-	odds := 0
-	specials := 0
-	const alphanum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 *.,-()<>\n\r"
+	odds_a := 0
+	odds_b := 0
 
-	for _, char := range persumed {
+	specials_a := 0
+	specials_b := 0
+	const alphanum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 *.,-()<>\n\r"
+	const bcdnum = "0123456789"
+
+	for _, char := range persumed_alpha {
 		r := rune(char)
 		if strings.IndexRune(alphanum, r) < 0 {
-			specials++
+			specials_a++
 		}
 	}
 
-	partspecial := float32(specials) / float32(len(persumed))
-	if partspecial < 0.2 {
-		odds += 2
+	for _, char := range persumed_bcd {
+		r := rune(char)
+		if strings.IndexRune(bcdnum, r) < 0 {
+			specials_b++
+		}
 	}
 
-	if partspecial >= 0.2 {
-		odds += -1
+	partspecial_a := float32(specials_a) / float32(len(persumed_alpha))
+	partspecial_b := float32(specials_b) / float32(len(persumed_bcd))
+
+	if partspecial_a < 0.2 {
+		odds_a += 2
 	}
 
-	if partspecial >= 0.50 {
-		odds += -2
+	if partspecial_a >= 0.2 {
+		odds_a += 1
 	}
 
-	if len(persumed) > 25 {
-		odds += 2
+	if partspecial_a >= 0.50 {
+		odds_b += 2
 	}
 
-	if len(persumed) > 40 {
-		odds += 3
+	// special charaters are uncommon in bcd messages
+	if partspecial_b == 0 {
+		odds_b += 2
+	}
+
+	if partspecial_b >= 0.1 {
+		odds_a += 1
+	}
+
+	if len(persumed_alpha) > 25 {
+		odds_a += 2
+	}
+
+	if len(persumed_alpha) > 40 {
+		odds_a += 3
 	}
 
 	if DEBUG {
-		fmt.Printf("odds: %d\nspecial: %d (%0.0f%%)\n\n", odds, specials, (partspecial * 100))
+		red.Printf("odds: %d/%d\nspecial: %d/%d (%0.0f%%)\n\n", odds_a, odds_b, specials_a, specials_b, (partspecial_a * 100))
 	}
 
-	return odds > 0
+	if odds_a > odds_b {
+		return MessageTypeAlphanumeric
+	} else {
+		return MessageTypeBitcodedDecimal
+	}
+
 }
 
 //-----------------------------
