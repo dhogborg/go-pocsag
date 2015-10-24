@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/dhogborg/go-pocsag/internal/datatypes"
 	"github.com/dhogborg/go-pocsag/internal/utils"
@@ -36,14 +37,14 @@ const (
 
 // ParsePOCSAG takes bits decoded from the stream and parses them for
 // batches of codewords then prints them using the specefied message type.
-func ParsePOCSAG(bits []datatypes.Bit, messagetype MessageType) {
+func ParsePOCSAG(bits []datatypes.Bit, messagetype MessageType) []*Message {
 
 	pocsag := &POCSAG{}
 
 	batches, err := pocsag.ParseBatches(bits)
 	if err != nil {
 		println(err.Error())
-		return
+		return []*Message{}
 	}
 
 	if DEBUG && LEVEL > 1 {
@@ -54,22 +55,7 @@ func ParsePOCSAG(bits []datatypes.Bit, messagetype MessageType) {
 		}
 	}
 
-	messages := pocsag.ParseMessages(batches)
-	for _, m := range messages {
-
-		green.Println("-- Message --------------")
-		green.Println("Reciptient: ", m.ReciptientString())
-
-		if !m.IsValid() {
-			red.Println("This message has parity check errors. Contents might be corrupted")
-		}
-
-		println("")
-		print(m.PayloadString(messagetype))
-		println("")
-		println("")
-
-	}
+	return pocsag.ParseMessages(batches)
 }
 
 type POCSAG struct{}
@@ -174,6 +160,7 @@ func (p *POCSAG) ParseMessages(batches []*Batch) []*Message {
 // Message construct holds refernces to codewords.
 // The Payload is a seies of codewords of message type.
 type Message struct {
+	Timestamp  time.Time
 	Reciptient *Codeword
 	Payload    []*Codeword
 }
@@ -181,9 +168,47 @@ type Message struct {
 // NewMessage creates a new message construct ready to accept payload codewords
 func NewMessage(reciptient *Codeword) *Message {
 	return &Message{
+		Timestamp:  time.Now(),
 		Reciptient: reciptient,
 		Payload:    []*Codeword{},
 	}
+}
+
+func (m *Message) Print(messagetype MessageType) {
+	green.Println("-- Message --------------")
+	green.Println("Reciptient: ", m.ReciptientString())
+
+	if !m.IsValid() {
+		red.Println("This message has parity check errors. Contents might be corrupted")
+	}
+
+	println("")
+	print(m.PayloadString(messagetype))
+	println("")
+	println("")
+
+}
+
+func (m *Message) Write(path string, messagetype MessageType) {
+	if !os.IsPathSeparator(path[len(path)-1]) {
+		path += "/"
+	}
+
+	now := time.Now()
+	timestr := now.Format("20060102_15.04.05")
+	file, err := os.Create(path + m.ReciptientString() + "_" + timestr + ".txt")
+	defer file.Close()
+
+	if err != nil {
+		println("error creating file: " + err.Error())
+		return
+	}
+
+	file.WriteString("Time: " + now.String() + "\n")
+	file.WriteString("Reciptient: " + m.ReciptientString() + "\n")
+	file.WriteString("-------------------\n")
+	file.WriteString(m.PayloadString(messagetype) + "\n")
+
 }
 
 // AddPayload codeword to a message. Must be codeword of CodewordTypeMessage type
@@ -199,9 +224,9 @@ func (m *Message) ReciptientString() string {
 	addr := uint(bytes[1])
 	addr += uint(bytes[0]) << 8
 
-	return fmt.Sprintf("%X:%s%s", addr,
-		utils.TernaryStr(bool(m.Reciptient.Payload[18]), "1", "0"),
-		utils.TernaryStr(bool(m.Reciptient.Payload[19]), "1", "0"))
+	return fmt.Sprintf("%X%d%d", addr,
+		m.Reciptient.Payload[18].Int(),
+		m.Reciptient.Payload[19].Int())
 }
 
 // IsValid returns true if no parity bit check errors occurs in the message payload

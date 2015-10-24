@@ -24,6 +24,7 @@ var (
 
 type Config struct {
 	input       string
+	output      string
 	baud        int
 	debug       bool
 	messagetype pocsag.MessageType
@@ -41,6 +42,11 @@ func main() {
 			Name:  "input,i",
 			Value: "",
 			Usage: "wav file with signed 16 bit ints, - for sttdin",
+		},
+		cli.StringFlag{
+			Name:  "output,o",
+			Value: "",
+			Usage: "Output decoded messages to a folder",
 		},
 		cli.IntFlag{
 			Name:  "verbosity",
@@ -66,6 +72,7 @@ func main() {
 	app.Action = func(c *cli.Context) {
 		config = &Config{
 			input:       c.String("input"),
+			output:      c.String("output"),
 			baud:        c.Int("baud"),
 			debug:       c.Bool("debug"),
 			verbosity:   c.Int("verbosity"),
@@ -104,6 +111,15 @@ func Run() {
 
 	for {
 		bits := <-bitstream
-		pocsag.ParsePOCSAG(bits, config.messagetype)
+		messages := pocsag.ParsePOCSAG(bits, config.messagetype)
+
+		for _, m := range messages {
+			m.Print(config.messagetype)
+
+			if config.output != "" {
+				m.Write(config.output, config.messagetype)
+			}
+		}
+
 	}
 }
