@@ -172,6 +172,17 @@ func bcdChar(foo uint8) string {
 	return chars[foo-10]
 }
 
+func Btouint32(bytes []byte) uint32 {
+
+	var a uint32 = 0
+	a += uint32(bytes[0]) << 24
+	a += uint32(bytes[1]) << 16
+	a += uint32(bytes[2]) << 8
+	a += uint32(bytes[3])
+
+	return a
+}
+
 func TernaryStr(condition bool, a, b string) string {
 	if condition {
 		return a
@@ -203,4 +214,17 @@ func PrintSample(sample int16) {
 	} else {
 		red.Printf("%d ", sample)
 	}
+}
+
+func PrintUint32(i uint32) {
+	var x uint32 = 1 << 31
+	for a := 0; a < 32; a += 1 {
+		if (i & x) > 0 {
+			green.Print("1 ")
+		} else {
+			red.Print("0 ")
+		}
+		x >>= 1
+	}
+	println("")
 }

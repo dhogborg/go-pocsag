@@ -29,14 +29,14 @@ func NewStreamReader(source io.Reader, bauds int) *StreamReader {
 }
 
 // StartScan takes a channel on which bitstreams will be written when found and parsed.
-// The scanner will continue indefently and sleep for 3 ms per cycle to go easy on the system load.
+// The scanner will continue indefently or to EOF is reached
 func (s *StreamReader) StartScan(bitstream chan []datatypes.Bit) {
 
 	fmt.Println("Starting transmission scanner")
 
 	for {
 
-		bytes := make([]byte, 4096)
+		bytes := make([]byte, 8192)
 		c, err := s.Stream.Read(bytes)
 
 		if err != nil {
@@ -75,7 +75,7 @@ func (s *StreamReader) ReadTransmission(beginning []int16) []int16 {
 
 	for {
 
-		bytes := make([]byte, 4096)
+		bytes := make([]byte, 8192)
 		c, _ := s.Stream.Read(bytes)
 
 		if c > 0 {
@@ -146,8 +146,8 @@ func (s *StreamReader) ScanTransmissionStart(stream []int16) (int, int) {
 	}
 
 	if DEBUG {
-		fmt.Println("Mean bitlength:", mean_bitlength)
-		fmt.Println("Determined bitlength:", bitlength)
+		blue.Println("Mean bitlength:", mean_bitlength)
+		blue.Println("Determined bitlength:", bitlength)
 	}
 
 	// look at every other sample to see if we have a repeating pattern with matching size
@@ -180,7 +180,7 @@ func (s *StreamReader) ScanTransmissionStart(stream []int16) (int, int) {
 		if confidence > 10 {
 
 			if DEBUG {
-				fmt.Println("Found bitsync")
+				blue.Println("Found bitsync")
 			}
 
 			return switches[a] + int(bitlength/2), int(bitlength)

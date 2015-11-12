@@ -125,14 +125,14 @@ func (p *POCSAG) ParseMessages(batches []*Batch) []*Message {
 			switch codeword.Type {
 			// append current and begin new message
 			case CodewordTypeAddress:
-				if message != nil {
+				if message != nil && len(message.Payload) > 0 {
 					messages = append(messages, message)
 				}
 				message = NewMessage(codeword)
 
 			// append current but dont start new
 			case CodewordTypeIdle:
-				if message != nil {
+				if message != nil && len(message.Payload) > 0 {
 					messages = append(messages, message)
 				}
 				message = nil
@@ -180,6 +180,10 @@ func (m *Message) Print(messagetype MessageType) {
 
 	if !m.IsValid() {
 		red.Println("This message has parity check errors. Contents might be corrupted")
+	}
+
+	if DEBUG && m.biterrors() > 0 {
+		red.Println(m.biterrors(), "bits corrected by parity check")
 	}
 
 	println("")
@@ -243,6 +247,14 @@ func (m *Message) IsValid() bool {
 		}
 	}
 	return true
+}
+
+func (m *Message) biterrors() (errors int) {
+	errors = m.Reciptient.BitCorrections
+	for _, c := range m.Payload {
+		errors += c.BitCorrections
+	}
+	return
 }
 
 // PayloadString can try to decide to print the message as bitcoded decimal ("bcd") or
@@ -434,6 +446,8 @@ type Codeword struct {
 	ParityBits  []datatypes.Bit
 	EvenParity  datatypes.Bit
 	ValidParity bool
+
+	BitCorrections int
 }
 
 // NewCodeword takes 32 bits, creates a new codeword construct, sets the type and checks for parity errors.
@@ -441,6 +455,8 @@ func NewCodeword(bits []datatypes.Bit) (*Codeword, error) {
 	if len(bits) != 32 {
 		return nil, fmt.Errorf("invalid number of bits for codeword: ", len(bits))
 	}
+
+	bits, corrected := BitCorrection(bits)
 
 	mtype := CodewordTypeAddress
 	if bits[0] == true {
@@ -453,14 +469,67 @@ func NewCodeword(bits []datatypes.Bit) (*Codeword, error) {
 	}
 
 	c := &Codeword{
-		Type:        mtype,
-		Payload:     bits[1:21],
-		ParityBits:  bits[21:31],
-		EvenParity:  bits[31],
-		ValidParity: utils.ParityCheck(bits[0:31], bits[31]),
+		Type:           mtype,
+		Payload:        bits[1:21],
+		ParityBits:     bits[21:31],
+		EvenParity:     bits[31],
+		ValidParity:    (syndrome(bits) == 0) && utils.ParityCheck(bits[:31], bits[31]),
+		BitCorrections: corrected,
 	}
 
 	return c, nil
+}
+
+// BitCorrection will attempt to brute-force the codeword to make it validate
+// with the parity bits. This can correct up to two errounous bits from transmission.
+func BitCorrection(inbits []datatypes.Bit) (bits []datatypes.Bit, corrections int) {
+
+	bits = make([]datatypes.Bit, 32)
+	corrections = 0
+
+	copy(bits, inbits)
+
+	if syndrome(bits) == 0 {
+		// valid message
+		return
+	}
+
+	// test for single bit errors
+	for a := 0; a < 31; a += 1 {
+
+		bits_x := make([]datatypes.Bit, 32)
+		copy(bits_x, bits)
+
+		bits_x[a] = !bits_x[a]
+
+		if syndrome(bits_x) == 0 {
+			bits = bits_x
+			corrections = 1
+			return
+		}
+
+		// test double bit errors
+		for b := 0; b < 31; b += 1 {
+
+			// dont flip-flip (negate) the previous change
+			if b != a {
+
+				bits_xx := make([]datatypes.Bit, 32)
+				copy(bits_xx, bits_x)
+
+				bits_xx[b] = !bits_xx[b]
+
+				if syndrome(bits_xx) == 0 {
+					bits = bits_xx
+					corrections = 2
+					return
+				}
+			}
+		}
+
+	}
+
+	return
 }
 
 // Print the codeword contents and type to terminal. For debugging.
@@ -485,10 +554,16 @@ func (c *Codeword) Print() {
 	}
 
 	parity := utils.TernaryStr(c.ValidParity, "", "*")
+	color.Printf("%s %s %s ", c.Type, payload, parity)
+	corr := c.BitCorrections
+	if corr > 0 {
+		color.Printf("%d bits corrected", corr)
+	}
 
-	color.Printf("%s %s %s\n", c.Type, payload, parity)
+	println("")
 }
 
+// Print the address for debugging
 func (c *Codeword) Adress() string {
 	bytes := utils.MSBBitsToBytes(c.Payload[0:17], 8)
 	addr := uint(bytes[1])
@@ -501,27 +576,52 @@ func (c *Codeword) Adress() string {
 }
 
 // Utilities
+
 // isPreamble matches 4 bytes to the POCSAG preamble 0x7CD215D8
 func isPreamble(bytes []byte) bool {
-
-	var a uint32 = 0
-	a += uint32(bytes[0]) << 24
-	a += uint32(bytes[1]) << 16
-	a += uint32(bytes[2]) << 8
-	a += uint32(bytes[3])
-
-	return a == POCSAG_PREAMBLE
+	return utils.Btouint32(bytes) == POCSAG_PREAMBLE
 }
 
 // isIdle matches 4 bytes to the POCSAG idle codeword 0x7A89C197
 func isIdle(bytes []byte) bool {
+	return utils.Btouint32(bytes) == POCSAG_IDLE
+}
 
-	var a uint32 = 0
-	a += uint32(bytes[0]) << 24
-	a += uint32(bytes[1]) << 16
-	a += uint32(bytes[2]) << 8
-	a += uint32(bytes[3])
+const (
+	BHC_COEFF = 0xED200000
+	BCH_N     = 31
+	BCH_K     = 21
+)
 
-	return a == POCSAG_IDLE
+// syndrome takes a bitstream and uses the parity bits from the BCH polynomial
+// generator to calculate if the bits are received correctly.
+// A 0 return means the bits are correct.
+// Thanks to multimon-ng (https://github.com/EliasOenal/multimon-ng) for
+// detailing implmentation of this.
+func syndrome(bits []datatypes.Bit) uint32 {
+	bytes := utils.MSBBitsToBytes(bits, 8)
 
+	// take the parity-bit out from our codeword
+	codeword := utils.Btouint32(bytes) >> 1
+
+	// put the mask bit to the far left in the bitstream
+	mask := uint32(1 << (BCH_N))
+	coeff := uint32(BHC_COEFF)
+
+	// step over each data-bit (the first 21)
+	for a := 0; a < BCH_K; a += 1 {
+		// step the coefficient and mask right in the bitstream
+		mask >>= 1
+		coeff >>= 1
+
+		// if the current bit in the codeword is 1 then XOR the codeword with the coefficient
+		if (codeword & mask) > 0 {
+			codeword = codeword ^ coeff
+		}
+	}
+
+	// in the end, if the coefficient matches the codeword they
+	// are canceled out by the XOR, returning 0
+
+	return codeword
 }
