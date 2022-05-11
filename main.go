@@ -4,7 +4,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 	"github.com/fatih/color"
 
 	"github.com/dhogborg/go-pocsag/internal/datatypes"
